@@ -622,9 +622,12 @@ void Stream::MeasureDelay() {
       // The next frame the stream takes is played this long from now. It can
       // come out negative, as around an underrun.
       ms = std::max(0.0, result.value());
-    } else if (result.error() == oboe::Result::ErrorUnimplemented) {
-      // OpenSL ES has no timestamps: the frames the stream holds are the
-      // estimate.
+    } else if (result.error() == oboe::Result::ErrorUnimplemented ||
+               result.error() == oboe::Result::ErrorInvalidState) {
+      // OpenSL ES has no timestamps, and AAudio gives none on some streams:
+      // a Pixel 9a's shared MMAP stream answered AAUDIO_ERROR_INVALID_STATE
+      // to every getTimestamp while started (bellui#1228, 2026-11-14). The
+      // frames the stream holds are the estimate.
       ms = stream->getBufferSizeInFrames() * 1000.0 / sample_rate_;
     } else {
       return;
