@@ -62,7 +62,8 @@ type NewContextOptions struct {
 	SampleRate int
 
 	// ChannelCount specifies the number of channels. One channel is mono playback. Two
-	// channels are stereo playback. No other values are supported.
+	// channels are stereo playback. Upstream supports no other values; this
+	// fork passes larger counts to the driver.
 	ChannelCount int
 
 	// Format specifies the format of sources.
@@ -96,8 +97,11 @@ func NewContext(options *NewContextOptions) (*Context, chan struct{}, error) {
 	if options.SampleRate <= 0 {
 		return nil, nil, fmt.Errorf("oto: sample rate must be positive: %d", options.SampleRate)
 	}
-	if options.ChannelCount != 1 && options.ChannelCount != 2 {
-		return nil, nil, fmt.Errorf("oto: channel count must be 1 or 2: %d", options.ChannelCount)
+	// Upstream rejects any count but 1 and 2 (#303). Bellui lets an app ask
+	// for a surround device (bellui#707), which the drivers open as asked, so
+	// the fork rejects only a count that cannot be one.
+	if options.ChannelCount <= 0 {
+		return nil, nil, fmt.Errorf("oto: channel count must be positive: %d", options.ChannelCount)
 	}
 	if options.BufferSize < 0 {
 		return nil, nil, fmt.Errorf("oto: buffer size must not be negative: %s", options.BufferSize)

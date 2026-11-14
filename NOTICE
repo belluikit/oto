@@ -11,6 +11,8 @@ Modifications made in this fork (per Section 4(b) of the Apache License):
   github.com/ebitengine/oto/v3 to github.com/belluikit/oto/v3, and the import
   paths in the package's own files and examples were updated to match.
   README.md was edited to describe the fork.
+- 2026: NewContext accepts any positive channel count, where upstream
+  accepts only 1 and 2 (context.go), for Bellui's surround output.
 
 The fork is maintained for Bellui (https://bellui.com). Copyright in the
 original files remains with their respective authors.
