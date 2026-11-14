@@ -23,7 +23,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/ebitengine/oto/v3/internal/mux"
+	"github.com/belluikit/oto/v3/internal/mux"
 )
 
 const defaultHeaderBufferSize = 4096

@@ -20,7 +20,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/ebitengine/oto/v3/internal/mux"
+	"github.com/belluikit/oto/v3/internal/mux"
 )
 
 // The tests play 48 kHz stereo float32: 8 bytes a frame.

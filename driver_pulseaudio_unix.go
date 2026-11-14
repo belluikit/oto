@@ -26,7 +26,7 @@ import (
 	"github.com/jfreymuth/pulse"
 	"github.com/jfreymuth/pulse/proto"
 
-	"github.com/ebitengine/oto/v3/internal/mux"
+	"github.com/belluikit/oto/v3/internal/mux"
 )
 
 type pulseContext struct {

@@ -1,0 +1,16 @@
+belluikit/oto
+=============
+
+This product is a modified version of ebitengine/oto
+(https://github.com/ebitengine/oto), licensed under the Apache License,
+Version 2.0; the full text is in LICENSE.
+
+Modifications made in this fork (per Section 4(b) of the Apache License):
+
+- 2026: forked from the main branch after v3.6.0-alpha (0ec3daeb). The Go module path was changed from
+  github.com/ebitengine/oto/v3 to github.com/belluikit/oto/v3, and the import
+  paths in the package's own files and examples were updated to match.
+  README.md was edited to describe the fork.
+
+The fork is maintained for Bellui (https://bellui.com). Copyright in the
+original files remains with their respective authors.

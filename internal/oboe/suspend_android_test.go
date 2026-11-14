@@ -17,7 +17,7 @@ package oboe_test
 import (
 	"testing"
 
-	"github.com/ebitengine/oto/v3/internal/oboe"
+	"github.com/belluikit/oto/v3/internal/oboe"
 )
 
 // Ebitengine calls Suspend on lifecycle events as soon as NewContext returns,

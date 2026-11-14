@@ -22,8 +22,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/ebitengine/oto/v3/internal/mux"
-	"github.com/ebitengine/oto/v3/internal/oboe"
+	"github.com/belluikit/oto/v3/internal/mux"
+	"github.com/belluikit/oto/v3/internal/oboe"
 )
 
 // workingReader is a source that always has sound, a sample of 1 after

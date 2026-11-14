@@ -1,7 +1,9 @@
+> **Fork notice** — this is the Bellui fork of [`ebitengine/oto`](https://github.com/ebitengine/oto), forked from the main branch after v3.6.0-alpha (0ec3daeb) and rebranded to the module path `github.com/belluikit/oto/v3`. Upstream copyright and the Apache-2.0 license are retained in full; see `LICENSE` and `NOTICE`. Sync upstream via the `upstream` git remote.
+
 # Oto (v3)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/ebitengine/oto/v3.svg)](https://pkg.go.dev/github.com/ebitengine/oto/v3)
-[![Build Status](https://github.com/ebitengine/oto/actions/workflows/test.yml/badge.svg)](https://github.com/ebitengine/oto/actions?query=workflow%3Atest)
+[![Go Reference](https://pkg.go.dev/badge/github.com/belluikit/oto/v3.svg)](https://pkg.go.dev/github.com/belluikit/oto/v3)
+[![Build Status](https://github.com/belluikit/oto/actions/workflows/test.yml/badge.svg)](https://github.com/belluikit/oto/actions?query=workflow%3Atest)
 
 A low-level library to play sound.
 
@@ -88,7 +90,7 @@ import (
     "time"
     "os"
 
-    "github.com/ebitengine/oto/v3"
+    "github.com/belluikit/oto/v3"
     "github.com/hajimehoshi/go-mp3"
 )
 
@@ -169,7 +171,7 @@ import (
     "os"
     "time"
 
-    "github.com/ebitengine/oto/v3"
+    "github.com/belluikit/oto/v3"
     "github.com/hajimehoshi/go-mp3"
 )
 

@@ -25,7 +25,7 @@ import (
 
 	"github.com/ebitengine/purego"
 
-	"github.com/ebitengine/oto/v3/internal/mux"
+	"github.com/belluikit/oto/v3/internal/mux"
 )
 
 const (

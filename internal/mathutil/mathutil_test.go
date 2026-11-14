@@ -19,7 +19,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ebitengine/oto/v3/internal/mathutil"
+	"github.com/belluikit/oto/v3/internal/mathutil"
 )
 
 func TestMulDiv(t *testing.T) {

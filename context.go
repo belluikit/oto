@@ -21,8 +21,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ebitengine/oto/v3/internal/mathutil"
-	"github.com/ebitengine/oto/v3/internal/mux"
+	"github.com/belluikit/oto/v3/internal/mathutil"
+	"github.com/belluikit/oto/v3/internal/mux"
 )
 
 var (

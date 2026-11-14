@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ebitengine/oto/v3"
+	"github.com/belluikit/oto/v3"
 )
 
 func TestDurationToBufferSize(t *testing.T) {
