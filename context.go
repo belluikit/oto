@@ -213,8 +213,10 @@ func (c *Context) Resume() error {
 // Resume plays anything. Flush while playing discards what is queued now,
 // which the hardware then plays as a short silence.
 //
-// Flush is implemented on Android, where the queue is oto's own and the
-// platform stream's. Elsewhere it does nothing and returns nil.
+// Flush is implemented on Android, where it discards oto's own queue, tens of
+// milliseconds. The few milliseconds the platform stream holds are kept:
+// flushing them made the next Resume take about 250 ms on a Pixel 9a.
+// Elsewhere Flush does nothing and returns nil.
 //
 // Flush is concurrent-safe.
 func (c *Context) Flush() error {

@@ -153,7 +153,6 @@ private:
   void ConfigureRefillLocked();
   Status EnsureStreamLocked();
   Status StartLocked();
-  void FlushPausedStreamLocked();
   Status StartOrDeferLocked();
   void DeferStartLocked();
 
@@ -219,11 +218,8 @@ private:
   std::atomic<int> fill_target_frames_{0};
 
   // discard_queued_ asks onAudioReady to empty fifo_ before it reads, which
-  // only the reader may do while the stream can run (Flush). flush_stream_,
-  // under mutex_, asks the next start to flush the stream's own buffer, which
-  // a stream allows only while paused.
+  // only the reader may do while the stream can run (Flush).
   std::atomic<bool> discard_queued_{false};
-  bool flush_stream_ = false;
   std::atomic<int64_t> min_wait_us_{1000};
   std::atomic<int> max_callback_{0};
 
@@ -346,10 +342,6 @@ Status Stream::EnsureStreamLocked() {
 Status Stream::StartLocked() {
   if (Status status = EnsureStreamLocked(); status.msg) {
     return status;
-  }
-  if (flush_stream_) {
-    flush_stream_ = false;
-    FlushPausedStreamLocked();
   }
   // The zero timeout requests the start without waiting for the stream to
   // reach the started state. mutex_ is held here, and Pause and Resume take it
@@ -504,39 +496,19 @@ const char *Stream::Resume() {
   return StartOrDeferLocked().msg;
 }
 
-// Flush discards the sound queued for the device: fifo_, emptied by the next
-// onAudioReady, and the stream's own buffer, flushed before the next start
-// when the stream is not running. A stream opened anew has no buffer to flush.
+// Flush discards the sound queued for the device in fifo_, which the next
+// onAudioReady empties before it reads.
+//
+// The stream's own buffer is not flushed. It is a few milliseconds, and
+// flushing it is what made the next start slow: on a Pixel 9a, start(0) took
+// about 250 ms after an AAudio flush and about 8 ms after a pause alone
+// (measured 2026-11-14, bellui#1228), on the caller's thread.
 const char *Stream::Flush() {
   std::lock_guard<std::mutex> lock{mutex_};
   discard_queued_.store(true, std::memory_order_release);
-  if (state_ != State::kRunning) {
-    flush_stream_ = true;
-  }
   // The delay measured counted the frames queued in fifo_.
   ResetDelayLocked();
   return nullptr;
-}
-
-// kFlushWait bounds each wait FlushPausedStreamLocked makes on the device. A
-// pause and a flush take a few milliseconds; the bound is for a device that
-// does not answer, as this runs on the caller's thread.
-constexpr int64_t kFlushWait = 20 * oboe::kNanosPerMillisecond;
-
-// FlushPausedStreamLocked flushes the stream's own buffer before it starts. A
-// stream flushes only once paused, and Pause requests the pause without
-// waiting, so a start right after a pause, as when one sound is stopped and
-// the next started, waits for it here first. A flush that fails leaves the
-// buffer to play: the next start is not held up for it.
-void Stream::FlushPausedStreamLocked() {
-  if (!stream_) {
-    return;
-  }
-  if (stream_->getState() == oboe::StreamState::Pausing) {
-    oboe::StreamState next = oboe::StreamState::Unknown;
-    stream_->waitForStateChange(oboe::StreamState::Pausing, &next, kFlushWait);
-  }
-  stream_->flush(kFlushWait);
 }
 
 const char *Stream::Close() {
@@ -624,10 +596,11 @@ void Stream::MeasureDelay() {
       ms = std::max(0.0, result.value());
     } else if (result.error() == oboe::Result::ErrorUnimplemented ||
                result.error() == oboe::Result::ErrorInvalidState) {
-      // OpenSL ES has no timestamps, and AAudio gives none on some streams:
-      // a Pixel 9a's shared MMAP stream answered AAUDIO_ERROR_INVALID_STATE
-      // to every getTimestamp while started (bellui#1228, 2026-11-14). The
-      // frames the stream holds are the estimate.
+      // OpenSL ES has no timestamps, and AAudio sometimes gives none: on a
+      // Pixel 9a, while another app played through the same shared MMAP
+      // endpoint, every getTimestamp answered AAUDIO_ERROR_INVALID_STATE,
+      // and with nothing else playing they worked (bellui#1228, 2026-11-14).
+      // The frames the stream holds are the estimate.
       ms = stream->getBufferSizeInFrames() * 1000.0 / sample_rate_;
     } else {
       return;
