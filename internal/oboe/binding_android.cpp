@@ -129,6 +129,7 @@ public:
   const char *Play(int sample_rate, int channel_num, int buffer_size_in_bytes);
   const char *Pause();
   const char *Resume();
+  const char *Flush();
   const char *Close();
   const char *AppendBuffer(float *buf, size_t len);
 
@@ -152,6 +153,7 @@ private:
   void ConfigureRefillLocked();
   Status EnsureStreamLocked();
   Status StartLocked();
+  void FlushPausedStreamLocked();
   Status StartOrDeferLocked();
   void DeferStartLocked();
 
@@ -215,6 +217,13 @@ private:
   // keeps two of those and a read queued, for a device whose callbacks outgrow
   // its bursts.
   std::atomic<int> fill_target_frames_{0};
+
+  // discard_queued_ asks onAudioReady to empty fifo_ before it reads, which
+  // only the reader may do while the stream can run (Flush). flush_stream_,
+  // under mutex_, asks the next start to flush the stream's own buffer, which
+  // a stream allows only while paused.
+  std::atomic<bool> discard_queued_{false};
+  bool flush_stream_ = false;
   std::atomic<int64_t> min_wait_us_{1000};
   std::atomic<int> max_callback_{0};
 
@@ -337,6 +346,10 @@ Status Stream::EnsureStreamLocked() {
 Status Stream::StartLocked() {
   if (Status status = EnsureStreamLocked(); status.msg) {
     return status;
+  }
+  if (flush_stream_) {
+    flush_stream_ = false;
+    FlushPausedStreamLocked();
   }
   // The zero timeout requests the start without waiting for the stream to
   // reach the started state. mutex_ is held here, and Pause and Resume take it
@@ -491,6 +504,41 @@ const char *Stream::Resume() {
   return StartOrDeferLocked().msg;
 }
 
+// Flush discards the sound queued for the device: fifo_, emptied by the next
+// onAudioReady, and the stream's own buffer, flushed before the next start
+// when the stream is not running. A stream opened anew has no buffer to flush.
+const char *Stream::Flush() {
+  std::lock_guard<std::mutex> lock{mutex_};
+  discard_queued_.store(true, std::memory_order_release);
+  if (state_ != State::kRunning) {
+    flush_stream_ = true;
+  }
+  // The delay measured counted the frames queued in fifo_.
+  ResetDelayLocked();
+  return nullptr;
+}
+
+// kFlushWait bounds each wait FlushPausedStreamLocked makes on the device. A
+// pause and a flush take a few milliseconds; the bound is for a device that
+// does not answer, as this runs on the caller's thread.
+constexpr int64_t kFlushWait = 20 * oboe::kNanosPerMillisecond;
+
+// FlushPausedStreamLocked flushes the stream's own buffer before it starts. A
+// stream flushes only once paused, and Pause requests the pause without
+// waiting, so a start right after a pause, as when one sound is stopped and
+// the next started, waits for it here first. A flush that fails leaves the
+// buffer to play: the next start is not held up for it.
+void Stream::FlushPausedStreamLocked() {
+  if (!stream_) {
+    return;
+  }
+  if (stream_->getState() == oboe::StreamState::Pausing) {
+    oboe::StreamState next = oboe::StreamState::Unknown;
+    stream_->waitForStateChange(oboe::StreamState::Pausing, &next, kFlushWait);
+  }
+  stream_->flush(kFlushWait);
+}
+
 const char *Stream::Close() {
   // Nobody calls this so far.
   std::lock_guard<std::mutex> lock{mutex_};
@@ -518,6 +566,11 @@ oboe::DataCallbackResult Stream::onAudioReady(oboe::AudioStream *oboe_stream,
   // https://google.github.io/oboe/reference/classoboe_1_1_audio_stream_data_callback.html#ad8a3a9f609df5fd3a5d885cbe1b2204d
   if (num_frames > max_callback_.load(std::memory_order_relaxed)) {
     max_callback_.store(num_frames, std::memory_order_relaxed);
+  }
+  if (discard_queued_.exchange(false, std::memory_order_acq_rel)) {
+    // Only the reader moves the read counter, and LoopRead, the writer, only
+    // sees more room.
+    fifo_->setReadCounter(fifo_->getWriteCounter());
   }
   fifo_->readNow(audio_data, num_frames);
   return oboe::DataCallbackResult::Continue;
@@ -672,5 +725,7 @@ const char *oto_oboe_Play(int sample_rate, int channel_num,
 const char *oto_oboe_Suspend() { return Stream::GetInstance().Pause(); }
 
 const char *oto_oboe_Resume() { return Stream::GetInstance().Resume(); }
+
+const char *oto_oboe_Flush() { return Stream::GetInstance().Flush(); }
 
 } // extern "C"

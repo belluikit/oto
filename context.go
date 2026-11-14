@@ -204,6 +204,23 @@ func (c *Context) Resume() error {
 	return c.context.Resume()
 }
 
+// Flush discards the mixed sound that waits to be played: what the context has
+// sent towards the audio hardware and the hardware has not played yet.
+//
+// A suspended context otherwise keeps it, and Resume plays it first: after one
+// sound was stopped and the context suspended, the start of the next sound is
+// preceded by the end of the last. Flush while suspended discards it before
+// Resume plays anything. Flush while playing discards what is queued now,
+// which the hardware then plays as a short silence.
+//
+// Flush is implemented on Android, where the queue is oto's own and the
+// platform stream's. Elsewhere it does nothing and returns nil.
+//
+// Flush is concurrent-safe.
+func (c *Context) Flush() error {
+	return c.context.Flush()
+}
+
 // Err returns an error that occurred in the audio driver, if any.
 // Errors reported by Err are fatal: once Err returns a non-nil error,
 // this context is no longer usable.
