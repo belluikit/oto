@@ -1409,3 +1409,49 @@ func TestSeekPreservesVolumeRamp(t *testing.T) {
 		}
 	}
 }
+
+// heldReader is a source that returns nothing until gate is closed and then
+// a constant sample, like constReader: the player's reader is held off.
+type heldReader struct {
+	gate chan struct{}
+}
+
+func (r *heldReader) Read(buf []byte) (int, error) {
+	<-r.gate
+	for i := range buf {
+		buf[i] = 192
+	}
+	return len(buf), nil
+}
+
+func (r *heldReader) Seek(offset int64, whence int) (int64, error) {
+	return 0, nil
+}
+
+// A block mixed while the player holds nothing must not use up a volume ramp.
+// The audio that arrives later must still be ramped from the volume heard
+// before, or a fade-in set while the reader was held off starts at full level.
+func TestVolumeRampSurvivesAnEmptyMix(t *testing.T) {
+	const sampleCount = 256
+
+	src := &heldReader{gate: make(chan struct{})}
+	m := mux.New(48000, 1, mux.FormatUnsignedInt8)
+	p := newPlayer(t, m, src)
+	p.SetBufferSize(sampleCount)
+	p.SetVolume(0)
+	p.Play()
+
+	buf := make([]float32, sampleCount)
+	p.SetVolume(1)
+	m.ReadFloat32s(buf) // the player holds nothing yet
+
+	close(src.gate)
+	waitForBufferedSize(t, p, sampleCount)
+	m.ReadFloat32s(buf)
+	if got := buf[0]; got != 0 {
+		t.Errorf("first sample after the empty mix: got %v; want 0, the start of the ramp", got)
+	}
+	if got := buf[sampleCount-1]; !(got > 0.9*constSample) {
+		t.Errorf("last sample after the empty mix: got %v; want near %v, the end of the ramp", got, constSample)
+	}
+}
