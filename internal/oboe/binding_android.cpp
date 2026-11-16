@@ -129,6 +129,7 @@ public:
   const char *Play(int sample_rate, int channel_num, int buffer_size_in_bytes);
   const char *Pause();
   const char *Resume();
+  const char *Flush();
   const char *Close();
   const char *AppendBuffer(float *buf, size_t len);
 
@@ -215,6 +216,10 @@ private:
   // keeps two of those and a read queued, for a device whose callbacks outgrow
   // its bursts.
   std::atomic<int> fill_target_frames_{0};
+
+  // discard_queued_ asks onAudioReady to empty fifo_ before it reads, which
+  // only the reader may do while the stream can run (Flush).
+  std::atomic<bool> discard_queued_{false};
   std::atomic<int64_t> min_wait_us_{1000};
   std::atomic<int> max_callback_{0};
 
@@ -491,6 +496,21 @@ const char *Stream::Resume() {
   return StartOrDeferLocked().msg;
 }
 
+// Flush discards the sound queued for the device in fifo_, which the next
+// onAudioReady empties before it reads.
+//
+// The stream's own buffer is not flushed. It is a few milliseconds, and
+// flushing it is what made the next start slow: on a Pixel 9a, start(0) took
+// about 250 ms after an AAudio flush and about 8 ms after a pause alone
+// (measured 2026-11-14, bellui#1228), on the caller's thread.
+const char *Stream::Flush() {
+  std::lock_guard<std::mutex> lock{mutex_};
+  discard_queued_.store(true, std::memory_order_release);
+  // The delay measured counted the frames queued in fifo_.
+  ResetDelayLocked();
+  return nullptr;
+}
+
 const char *Stream::Close() {
   // Nobody calls this so far.
   std::lock_guard<std::mutex> lock{mutex_};
@@ -518,6 +538,11 @@ oboe::DataCallbackResult Stream::onAudioReady(oboe::AudioStream *oboe_stream,
   // https://google.github.io/oboe/reference/classoboe_1_1_audio_stream_data_callback.html#ad8a3a9f609df5fd3a5d885cbe1b2204d
   if (num_frames > max_callback_.load(std::memory_order_relaxed)) {
     max_callback_.store(num_frames, std::memory_order_relaxed);
+  }
+  if (discard_queued_.exchange(false, std::memory_order_acq_rel)) {
+    // Only the reader moves the read counter, and LoopRead, the writer, only
+    // sees more room.
+    fifo_->setReadCounter(fifo_->getWriteCounter());
   }
   fifo_->readNow(audio_data, num_frames);
   return oboe::DataCallbackResult::Continue;
@@ -569,9 +594,13 @@ void Stream::MeasureDelay() {
       // The next frame the stream takes is played this long from now. It can
       // come out negative, as around an underrun.
       ms = std::max(0.0, result.value());
-    } else if (result.error() == oboe::Result::ErrorUnimplemented) {
-      // OpenSL ES has no timestamps: the frames the stream holds are the
-      // estimate.
+    } else if (result.error() == oboe::Result::ErrorUnimplemented ||
+               result.error() == oboe::Result::ErrorInvalidState) {
+      // OpenSL ES has no timestamps, and AAudio sometimes gives none: on a
+      // Pixel 9a, while another app played through the same shared MMAP
+      // endpoint, every getTimestamp answered AAUDIO_ERROR_INVALID_STATE,
+      // and with nothing else playing they worked (bellui#1228, 2026-11-14).
+      // The frames the stream holds are the estimate.
       ms = stream->getBufferSizeInFrames() * 1000.0 / sample_rate_;
     } else {
       return;
@@ -672,5 +701,7 @@ const char *oto_oboe_Play(int sample_rate, int channel_num,
 const char *oto_oboe_Suspend() { return Stream::GetInstance().Pause(); }
 
 const char *oto_oboe_Resume() { return Stream::GetInstance().Resume(); }
+
+const char *oto_oboe_Flush() { return Stream::GetInstance().Flush(); }
 
 } // extern "C"

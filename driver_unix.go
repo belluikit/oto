@@ -91,6 +91,11 @@ func (c *context) Resume() error {
 	return nil
 }
 
+// Flush is implemented only on Android (Context.Flush).
+func (c *context) Flush() error {
+	return nil
+}
+
 func (c *context) Err() error {
 	if err := c.err.Load(); err != nil {
 		return err

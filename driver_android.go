@@ -61,6 +61,12 @@ func (c *context) Resume() error {
 	return oboe.Resume()
 }
 
+func (c *context) Flush() error {
+	c.m.Lock()
+	defer c.m.Unlock()
+	return oboe.Flush()
+}
+
 func (c *context) Err() error {
 	return c.err.Load()
 }

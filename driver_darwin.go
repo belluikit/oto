@@ -495,6 +495,11 @@ func (c *context) Resume() error {
 	return err
 }
 
+// Flush is implemented only on Android (Context.Flush).
+func (c *context) Flush() error {
+	return nil
+}
+
 // pause pauses the AudioQueue and updates c.state.
 // The caller must hold c.cond.L.
 func (c *context) pause() error {
