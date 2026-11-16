@@ -779,9 +779,12 @@ func (p *playerImpl) readBufferAndAdd(buf []float32, start int64) int {
 		}
 	}
 
-	p.prevVolume = p.volume
-
+	// A block that mixed nothing has played no part of the ramp: the next
+	// samples start from the volume last heard. Moved on here, a ramp set
+	// while the buffer was empty, as after a seek, was spent on silence and
+	// the samples that came next started at the new volume at once.
 	if n > 0 {
+		p.prevVolume = p.volume
 		p.recordSent(start, start+int64(n))
 	}
 
